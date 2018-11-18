@@ -5,9 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.IBinder;
-import android.os.Parcelable;
-import android.os.PersistableBundle;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -24,24 +26,32 @@ import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
 
-    private PlayService pService;
-    private boolean isBound = false;
+
+    private Messenger messenger;
+    private Messenger replayMessenger;
+
+
+
+    private class replayHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+
+        }
+    }
 
     private ServiceConnection sConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            PlayService.MyBinder mBinder = (PlayService.MyBinder) service;
-            pService = mBinder.getService();
-            isBound = true;
+            messenger = new Messenger(service);
 
-            Toast.makeText(MainActivity.this, "Play Service Bounded", Toast.LENGTH_SHORT).show();
+            Toast.makeText(MainActivity.this, "Play Service Connected", Toast.LENGTH_SHORT).show();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            isBound = false;
-            pService = null;
-            Toast.makeText(MainActivity.this, "Play Service UnBounded", Toast.LENGTH_SHORT).show();
+            messenger = null;
+            Toast.makeText(MainActivity.this, "Play Service UnConnected", Toast.LENGTH_SHORT).show();
         }
     };
 
@@ -49,54 +59,58 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        replayMessenger = new Messenger(new replayHandler());
+
         setContentView(R.layout.activity_main);
         init();
     }
 
+
+    private void updateProgress(int progress, int duration){
+        Handler h = new Handler();
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                
+            }
+
+        };
+    }
+
+
+
+
     public void onPlayButtonClick(View view) {
+        Message msg = Message.obtain(null, PlayService.PLAY, 0, 0);
+        msg.replyTo = replayMessenger;
 
-        Bundle extras = new Bundle();
-        extras.putBoolean("play", true);
-        if (!isBound){
-            Intent in = new Intent(MainActivity.this, PlayService.class);
-            in.putExtras(extras);
-            startForegroundService(in);
-            bindService(in, sConnection, Context.BIND_AUTO_CREATE);
-        } else {
-
+        try {
+            messenger.send(msg);
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
-
     }
 
     public void onPauseButtonClick(View view) {
+        Message msg = Message.obtain(null, PlayService.PAUSE, 0, 0);
 
-        Bundle extras = new Bundle();
-        extras.putBoolean("pause", true);
-        if (!isBound){
-            Intent in = new Intent(MainActivity.this, PlayService.class);
-            in.putExtras(extras);
-            startForegroundService(in);
-            bindService(in, sConnection, Context.BIND_AUTO_CREATE);
-        } else {
-
+        try {
+            messenger.send(msg);
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
     }
 
     public void onStopButtonClick(View view) {
+        Message msg = Message.obtain(null, PlayService.STOP, 0, 0);
 
-        Bundle extras = new Bundle();
-        extras.putBoolean("stop", true);
-        if (!isBound){
-            Intent in = new Intent(MainActivity.this, PlayService.class);
-            in.putExtras(extras);
-            startForegroundService(in);
-            bindService(in, sConnection, Context.BIND_AUTO_CREATE);
-        } else {
-
+        try {
+            messenger.send(msg);
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
-
     }
-
 
 
 
@@ -116,11 +130,21 @@ public class MainActivity extends AppCompatActivity {
                 Bundle extras = new Bundle();
                 extras.putString("filePath", selectedFile.getAbsolutePath());
 
-                if (!isBound){
+                if (messenger == null){
                     Intent in = new Intent(MainActivity.this, PlayService.class);
                     in.putExtras(extras);
-                    startForegroundService(in);
+                    startService(in);
                     bindService(in, sConnection, Context.BIND_AUTO_CREATE);
+                } else {
+
+                    Message msg = Message.obtain(null, PlayService.STARTNEWPLAY, 0, 0);
+                    msg.setData(extras);
+
+                    try {
+                        messenger.send(msg);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
                 }
 
             } );
@@ -144,24 +168,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
-        outState.putBoolean("isBound", isBound);
-        super.onSaveInstanceState(outState, outPersistentState);
-    }
-
-    @Override
     protected void onRestoreInstanceState(Bundle savedInstanceState) {
-        isBound = savedInstanceState.getBoolean("isBound");
         super.onRestoreInstanceState(savedInstanceState);
+
+        Intent in = new Intent(MainActivity.this, PlayService.class);
+        startService(in);
+        bindService(in, sConnection, Context.BIND_AUTO_CREATE);
+
     }
 
     @Override
     protected void onDestroy() {
 
-        if (isBound){
+        if (messenger != null){
             unbindService(sConnection);
             sConnection = null;
-            isBound = false;
         }
 
         super.onDestroy();
