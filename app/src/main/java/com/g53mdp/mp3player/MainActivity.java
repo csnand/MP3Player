@@ -18,6 +18,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
@@ -31,12 +32,22 @@ public class MainActivity extends AppCompatActivity {
     private Messenger replayMessenger;
 
 
-
     private class replayHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
-            super.handleMessage(msg);
+            switch (msg.what){
+                case PlayService.GETPROGRESS:
+                    int progress = msg.arg1;
+                    int duration = msg.arg2;
 
+                    TextView trackProgress = (TextView)findViewById(R.id.trackProgress);
+                    trackProgress.setText(Integer.toString(progress) + "/" + Integer.toString(duration));
+                    Log.d("progress in replymessage", Integer.toString(progress));
+
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
@@ -64,24 +75,37 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
         init();
+
+        updateProgressThread.run();
     }
 
 
-    private void updateProgress(int progress, int duration){
-        Handler h = new Handler();
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                
+    private Handler h = new Handler();
+    private Runnable updateProgressThread = new Runnable() {
+        @Override
+        public void run() {
+            Message msg= Message.obtain(null, PlayService.GETPROGRESS, 0, 0);
+            msg.replyTo = replayMessenger;
+
+            if (messenger != null) {
+                try {
+                    messenger.send(msg);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
             }
 
-        };
-    }
-
-
+            h.postDelayed(this, 1000);
+        }
+    };
 
 
     public void onPlayButtonClick(View view) {
+
+        if (messenger == null){
+            return;
+        }
+
         Message msg = Message.obtain(null, PlayService.PLAY, 0, 0);
         msg.replyTo = replayMessenger;
 
@@ -93,6 +117,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onPauseButtonClick(View view) {
+
+        if (messenger == null){
+            return;
+        }
+
         Message msg = Message.obtain(null, PlayService.PAUSE, 0, 0);
 
         try {
@@ -103,6 +132,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onStopButtonClick(View view) {
+
+        if (messenger == null){
+            return;
+        }
+
         Message msg = Message.obtain(null, PlayService.STOP, 0, 0);
 
         try {
@@ -110,6 +144,12 @@ public class MainActivity extends AppCompatActivity {
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+
+        TextView trackName = (TextView) findViewById(R.id.trackName);
+        trackName.setText("Stopped");
+
+        TextView trackProgress = (TextView) findViewById(R.id.trackProgress);
+        trackProgress.setText("0/0");
     }
 
 
@@ -127,6 +167,9 @@ public class MainActivity extends AppCompatActivity {
                 File selectedFile = (File) (dirList.getItemAtPosition(position));
                 Log.d("selected", selectedFile.getAbsolutePath() );
 
+                TextView trackName = (TextView) findViewById(R.id.trackName);
+                trackName.setText(selectedFile.getName());
+
                 Bundle extras = new Bundle();
                 extras.putString("filePath", selectedFile.getAbsolutePath());
 
@@ -136,7 +179,6 @@ public class MainActivity extends AppCompatActivity {
                     startService(in);
                     bindService(in, sConnection, Context.BIND_AUTO_CREATE);
                 } else {
-
                     Message msg = Message.obtain(null, PlayService.STARTNEWPLAY, 0, 0);
                     msg.setData(extras);
 
@@ -156,6 +198,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void initButtons(){
 
+        TextView trackName = (TextView) findViewById(R.id.trackName);
+        trackName.setText("No Track Played");
+
+        TextView trackProgress = (TextView) findViewById(R.id.trackProgress);
+        trackProgress.setText("0/0");
+
         Button playPause = (Button) findViewById (R.id.playButton);
         playPause.setBackgroundResource(R.drawable.play);
 
@@ -167,15 +215,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-
-        Intent in = new Intent(MainActivity.this, PlayService.class);
-        startService(in);
-        bindService(in, sConnection, Context.BIND_AUTO_CREATE);
-
-    }
 
     @Override
     protected void onDestroy() {
@@ -184,6 +223,8 @@ public class MainActivity extends AppCompatActivity {
             unbindService(sConnection);
             sConnection = null;
         }
+
+        h.removeCallbacks(updateProgressThread);
 
         super.onDestroy();
     }

@@ -24,14 +24,14 @@
         android:id="@+id/playButton"
         android:layout_width="60dp"
         android:layout_height="60dp"
-        android:layout_marginStart="52dp"
+        android:layout_marginStart="180dp"
         android:layout_marginTop="20dp"
         android:layout_marginBottom="20dp"
+        android:onClick="onPlayButtonClick"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/trackProgress"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/dirListView"
-        app:layout_constraintVertical_bias="0.571"
-        android:onClick="onPlayButtonClick"/>
+        app:layout_constraintVertical_bias="0.571" />
 
     <Button
         android:id="@+id/pauseButton"
@@ -53,11 +53,11 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="20dp"
         android:layout_marginBottom="20dp"
+        android:onClick="onStopButtonClick"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toEndOf="@+id/pauseButton"
         app:layout_constraintTop_toBottomOf="@+id/dirListView"
-        app:layout_constraintVertical_bias="0.54"
-        android:onClick="onStopButtonClick"/>
+        app:layout_constraintVertical_bias="0.54" />
 
     <TextView
         android:id="@+id/trackName"
