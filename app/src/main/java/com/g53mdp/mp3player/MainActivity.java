@@ -44,6 +44,12 @@ public class MainActivity extends AppCompatActivity {
                     trackProgress.setText(Integer.toString(progress) + "/" + Integer.toString(duration));
                     Log.d("progress in replymessage", Integer.toString(progress));
 
+                    String filePath = msg.getData().getString("filePath");
+                    if (filePath != null){
+                        TextView trackName = (TextView) findViewById(R.id.trackName);
+                        trackName.setText(filePath);
+                        Log.d("filePath in replymessage", filePath);
+                    }
                     break;
                 default:
                     break;
@@ -84,6 +90,7 @@ public class MainActivity extends AppCompatActivity {
     private Runnable updateProgressThread = new Runnable() {
         @Override
         public void run() {
+
             Message msg= Message.obtain(null, PlayService.GETPROGRESS, 0, 0);
             msg.replyTo = replayMessenger;
 
@@ -155,6 +162,13 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void init(){
+
+        if (messenger == null){
+                    Intent in = new Intent(MainActivity.this, PlayService.class);
+                    startService(in);
+                    bindService(in, sConnection, Context.BIND_AUTO_CREATE);
+                }
+
         ListView dirList = (ListView) findViewById(R.id.dirListView);
         File musidDir = new File(Environment.getExternalStorageDirectory().getPath() + "/Music/");
         if (musidDir == null) {
@@ -173,12 +187,6 @@ public class MainActivity extends AppCompatActivity {
                 Bundle extras = new Bundle();
                 extras.putString("filePath", selectedFile.getAbsolutePath());
 
-                if (messenger == null){
-                    Intent in = new Intent(MainActivity.this, PlayService.class);
-                    in.putExtras(extras);
-                    startService(in);
-                    bindService(in, sConnection, Context.BIND_AUTO_CREATE);
-                } else {
                     Message msg = Message.obtain(null, PlayService.STARTNEWPLAY, 0, 0);
                     msg.setData(extras);
 
@@ -187,7 +195,6 @@ public class MainActivity extends AppCompatActivity {
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
-                }
 
             } );
 
@@ -214,7 +221,6 @@ public class MainActivity extends AppCompatActivity {
         stop.setBackgroundResource(R.drawable.stop);
 
     }
-
 
     @Override
     protected void onDestroy() {

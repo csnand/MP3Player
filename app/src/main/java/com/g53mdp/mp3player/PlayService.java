@@ -26,8 +26,12 @@ public class PlayService extends Service {
     private int NOTIFICATION_ID = 1;
     private MP3Player player;
 
+    private String filePath;
+
     private Messenger messenger;
     private Messenger replyToMessenger;
+
+    private NotificationCompat.Builder mBuidler;
 
 
     static final int PLAY = 1;
@@ -64,19 +68,26 @@ public class PlayService extends Service {
 
             switch (msg.what){
                 case PLAY:
-                    player.play();
+                    if (player != null){
+                        player.play();
+                    }
                     break;
                 case PAUSE:
-                    player.pause();
+                    if (player != null){
+                        player.pause();
+                    }
                     break;
                 case STOP:
-                    player.stop();
+                    if (player != null){
+                        player.stop();
+                    }
                     break;
                 case STARTNEWPLAY:
-                    player.stop();
+                    if (player != null){
+                        player.stop();
+                    }
                     String filePath = msg.getData().getString("filePath");
                     startNewPlay(filePath);
-
                     break;
                 case GETPROGRESS:
                     getProgress();
@@ -90,6 +101,12 @@ public class PlayService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
+        if (intent != null && intent.getExtras() != null ){
+            if (intent.getExtras().getBoolean("stop")){
+                stopSelf();
+            }
+        }
+
         initNotification(intent);
 
         return START_STICKY;
@@ -99,9 +116,8 @@ public class PlayService extends Service {
 
         NotificationManager nManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "PlayService Channel";
-            CharSequence cancelButton = "Cancel";
             String desc = "PlayService";
 
             int importance = NotificationManager.IMPORTANCE_DEFAULT;
@@ -110,33 +126,44 @@ public class PlayService extends Service {
             channel.setDescription(desc);
 
             nManager.createNotificationChannel(channel);
-
-            Intent nIntent = new Intent(PlayService.this, MainActivity.class);
-
-            nIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            PendingIntent pIntent = PendingIntent.getActivity(this, 0, nIntent, 0);
+        }
 
 
-            String filePath;
-            if (intent == null){
-                filePath = null;
-            } else {
-                filePath = intent.getExtras().getString("filePath");
-            }
-            NotificationCompat.Builder mBuidler = new NotificationCompat.Builder(this, CHANNEL_ID)
+        Intent nIntent = new Intent(PlayService.this, MainActivity.class);
+        nIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        Bundle filePathBundle = new Bundle();
+        filePathBundle.putString("filePath", this.filePath);
+        PendingIntent pIntent = PendingIntent.getActivity(this, 0, nIntent, 0);
+
+        Intent serviceIntent = new Intent(PlayService.this, PlayService.class);
+        Bundle extras = new Bundle();
+        extras.putBoolean("stop", true);
+        serviceIntent.putExtras(extras);
+        PendingIntent pServiceIntent = PendingIntent.getService(this, 0, serviceIntent, PendingIntent.FLAG_CANCEL_CURRENT);
+
+        mBuidler = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_launcher_background)
                     .setContentTitle("MP3 Player")
                     .setContentText(filePath)
                     .setContentIntent(pIntent)
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .addAction(0,cancelButton, null)
+                    .addAction(0,"Stop Service", pServiceIntent)
                     //set notification persistent
                     .setOngoing(true);
 
-            nManager.notify(NOTIFICATION_ID, mBuidler.build());
+//            nManager.notify(NOTIFICATION_ID, mBuidler.build());
+        startForeground(NOTIFICATION_ID, mBuidler.build());
 
-            initPLayer(filePath);
+        String filePath;
+        if (intent == null || intent.getExtras() == null){
+            filePath = null;
+        } else {
+            filePath = intent.getExtras().getString("filePath");
+            this.filePath = filePath;
         }
+
+        initPLayer(filePath);
+
     }
 
     private void initPLayer(String filePath){
@@ -151,8 +178,16 @@ public class PlayService extends Service {
     }
 
     private void getProgress(){
-        Message replay = Message.obtain(null, GETPROGRESS, player.getProgress(), player.getDuration());
 
+        if (player == null){
+            return;
+        }
+
+        Message replay = Message.obtain(null, GETPROGRESS, player.getProgress(), player.getDuration());
+        Bundle filePath = new Bundle();
+        filePath.putString("filePath", this.filePath);
+
+        replay.setData(filePath);
         try {
             replyToMessenger.send(replay);
         } catch (RemoteException e) {
@@ -160,13 +195,18 @@ public class PlayService extends Service {
         }
     }
 
-
     private void startNewPlay(String filePath){
         if (filePath == null){
             Log.d("start new play", "empty file path");
             return;
         }
+
         initPLayer(filePath);
+
+        mBuidler.setContentTitle(filePath);
+        startForeground(NOTIFICATION_ID, mBuidler.build());
+
+        this.filePath = filePath;
     }
 
     @Override
